@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Allocation — Budget Planner{% endblock %}
+{% block page_title %}Allocation Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Allocation Planner</div>
+    <div class="page-subtitle">Assign every dollar a job before the month begins</div>
+  </div>
+  <div class="flex gap-sm">
+    <button class="btn btn-outline" id="btn-add-alloc-cat">
+      <i class="fas fa-plus"></i> Category
+    </button>
+    <button class="btn btn-primary" id="btn-save-alloc">
+      <i class="fas fa-save"></i> Save Allocations
+    </button>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 340px;gap:1.5rem;align-items:start">
+
+  <!-- Left: Allocation rows -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Monthly Allocations</span>
+      <span class="text-sm text-muted">Income: <strong id="alloc-income">—</strong></span>
+    </div>
+    <div class="card-body">
+
+      <!-- Budget bar -->
+      <div style="margin-bottom:1.5rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+          <span class="text-sm fw-700">Budget usage</span>
+          <span class="text-sm text-muted" id="alloc-bar-label">0% allocated</span>
+        </div>
+        <div class="alloc-budget-bar">
+          <div class="alloc-budget-fill" id="alloc-bar-fill" style="width:0%"></div>
+        </div>
+        <div style="margin-top:.6rem;font-size:.85rem;font-weight:600">
+          <span id="alloc-remaining-prefix">Under budget by</span>
+          <span id="alloc-remaining" style="color:var(--success)">—</span>
+        </div>
+      </div>
+
+      <!-- Rows injected by JS -->
+      <div id="alloc-rows"></div>
+    </div>
+  </div>
+
+  <!-- Right: Tips card -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">Budget Frameworks</span></div>
+    <div class="card-body" style="font-size:.875rem">
+      <p class="fw-700 mb-1" style="color:var(--primary)">50/30/20 Rule</p>
+      <p class="text-muted mb-2">50% needs · 30% wants · 20% savings</p>
+      <hr style="border:none;border-top:1px solid var(--border);margin-bottom:1rem">
+      <p class="fw-700 mb-1" style="color:var(--primary)">FIRE Approach</p>
+      <p class="text-muted mb-2">Maximize savings rate (50–70%+) to retire early</p>
+      <hr style="border:none;border-top:1px solid var(--border);margin-bottom:1rem">
+      <p class="fw-700 mb-1" style="color:var(--primary)">Pay Yourself First</p>
+      <p class="text-muted">Move savings &amp; investments before any discretionary spending</p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>initAllocation();</script>
+{% endblock %}

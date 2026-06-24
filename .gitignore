@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+instance/budget.db
+.env
+.DS_Store
+*.egg-info/
+dist/
+build/

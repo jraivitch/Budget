@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Budget Planner{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Financial Overview</div>
+    <div class="page-subtitle">Your monthly snapshot at a glance</div>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="stat-grid">
+  <div class="stat-card" style="--accent: #10b981">
+    <i class="fas fa-money-bill-wave stat-icon"></i>
+    <div class="stat-label">Monthly Income</div>
+    <div class="stat-value" id="stat-income">—</div>
+    <div class="stat-sub">Net take-home</div>
+  </div>
+
+  <div class="stat-card" style="--accent: #ef4444">
+    <i class="fas fa-receipt stat-icon"></i>
+    <div class="stat-label">Monthly Expenses</div>
+    <div class="stat-value" id="stat-expenses">—</div>
+    <div class="stat-sub">Total recurring</div>
+  </div>
+
+  <div class="stat-card" style="--accent: #6366f1">
+    <i class="fas fa-arrow-trend-up stat-icon"></i>
+    <div class="stat-label">Cash Flow</div>
+    <div class="stat-value" id="stat-cashflow">—</div>
+    <div class="stat-sub">Income minus expenses</div>
+  </div>
+
+  <div class="stat-card" style="--accent: #f59e0b">
+    <i class="fas fa-percent stat-icon"></i>
+    <div class="stat-label">Savings Rate</div>
+    <div class="stat-value" id="stat-savings-rate">—</div>
+    <div class="stat-sub">Of take-home income</div>
+  </div>
+
+  <div class="stat-card" style="--accent: #3b82f6">
+    <i class="fas fa-credit-card stat-icon"></i>
+    <div class="stat-label">Debt Payments</div>
+    <div class="stat-value" id="stat-debt-payments">—</div>
+    <div class="stat-sub">Monthly total</div>
+  </div>
+
+  <div class="stat-card" style="--accent: #8b5cf6">
+    <i class="fas fa-scale-balanced stat-icon"></i>
+    <div class="stat-label">Net Worth</div>
+    <div class="stat-value" id="stat-networth">—</div>
+    <div class="stat-sub">Savings minus debt</div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="chart-grid">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-chart-pie" style="color:var(--primary)"></i> Expenses by Category</span>
+    </div>
+    <div class="card-body">
+      <div class="chart-wrap"><canvas id="pieChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-chart-bar" style="color:var(--primary)"></i> Income vs Expenses</span>
+    </div>
+    <div class="card-body">
+      <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick links -->
+<div class="chart-grid" style="grid-template-columns:1fr 1fr 1fr; margin-bottom:0">
+  <a href="{{ url_for('income.income_page') }}" class="card" style="padding:1.25rem;display:flex;align-items:center;gap:1rem;transition:box-shadow .2s" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow='var(--shadow)'">
+    <div style="width:40px;height:40px;background:var(--success-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--success);font-size:1.1rem;flex-shrink:0"><i class="fas fa-money-bill-trend-up"></i></div>
+    <div><div class="fw-700">Manage Income</div><div class="text-sm text-muted">Add &amp; edit sources</div></div>
+    <i class="fas fa-chevron-right text-muted" style="margin-left:auto"></i>
+  </a>
+  <a href="{{ url_for('savings.savings_page') }}" class="card" style="padding:1.25rem;display:flex;align-items:center;gap:1rem;transition:box-shadow .2s" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow='var(--shadow)'">
+    <div style="width:40px;height:40px;background:var(--primary-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--primary);font-size:1.1rem;flex-shrink:0"><i class="fas fa-piggy-bank"></i></div>
+    <div><div class="fw-700">Savings Goals</div><div class="text-sm text-muted">Track your progress</div></div>
+    <i class="fas fa-chevron-right text-muted" style="margin-left:auto"></i>
+  </a>
+  <a href="{{ url_for('scenarios.scenarios_page') }}" class="card" style="padding:1.25rem;display:flex;align-items:center;gap:1rem;transition:box-shadow .2s" onmouseover="this.style.boxShadow='var(--shadow-lg)'" onmouseout="this.style.boxShadow='var(--shadow)'">
+    <div style="width:40px;height:40px;background:var(--warning-light);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--warning);font-size:1.1rem;flex-shrink:0"><i class="fas fa-flask"></i></div>
+    <div><div class="fw-700">Run Scenarios</div><div class="text-sm text-muted">What-if planning</div></div>
+    <i class="fas fa-chevron-right text-muted" style="margin-left:auto"></i>
+  </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>initDashboard();</script>
+{% endblock %}

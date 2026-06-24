@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Scenarios — Budget Planner{% endblock %}
+{% block page_title %}Scenario Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Scenario Planner</div>
+    <div class="page-subtitle">Test "what-if" changes and see the 5-year impact</div>
+  </div>
+</div>
+
+<div class="scenario-grid">
+
+  <!-- Left: Inputs -->
+  <div>
+    <div class="card mb-3">
+      <div class="card-header"><span class="card-title"><i class="fas fa-sliders" style="color:var(--primary)"></i> Current Baseline</span></div>
+      <div class="card-body">
+        <div class="form-group mb-2">
+          <label class="form-label">Monthly Income ($)</label>
+          <input id="sc-income" class="form-control sc-input font-mono" type="number" min="0" step="100" />
+        </div>
+        <div class="form-group mb-2">
+          <label class="form-label">Monthly Expenses ($)</label>
+          <input id="sc-expenses" class="form-control sc-input font-mono" type="number" min="0" step="100" />
+        </div>
+        <div class="form-group mb-2">
+          <label class="form-label">Current Savings ($)</label>
+          <input id="sc-savings" class="form-control sc-input font-mono" type="number" min="0" step="100" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Total Debt ($)</label>
+          <input id="sc-debt" class="form-control sc-input font-mono" type="number" min="0" step="100" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title"><i class="fas fa-flask" style="color:var(--warning)"></i> Adjust the Scenario</span></div>
+      <div class="card-body">
+
+        <div class="scenario-input-group">
+          <div class="scenario-input-label">Extra Monthly Savings</div>
+          <div class="range-wrap">
+            <input type="range" class="sc-input" id="sc-extra-savings" min="0" max="3000" step="50" value="0" oninput="document.getElementById('sc-extra-savings-val').textContent='$'+this.value" />
+            <span class="range-val" id="sc-extra-savings-val">$0</span>
+          </div>
+          <div class="form-hint">Extra cash parked in savings each month</div>
+        </div>
+
+        <div class="scenario-input-group">
+          <div class="scenario-input-label">Extra Monthly Investing</div>
+          <div class="range-wrap">
+            <input type="range" class="sc-input" id="sc-extra-invest" min="0" max="3000" step="50" value="0" oninput="document.getElementById('sc-extra-invest-val').textContent='$'+this.value" />
+            <span class="range-val" id="sc-extra-invest-val">$0</span>
+          </div>
+          <div class="form-hint">Additional brokerage / retirement contributions</div>
+        </div>
+
+        <div class="scenario-input-group">
+          <div class="scenario-input-label">Extra Debt Payments</div>
+          <div class="range-wrap">
+            <input type="range" class="sc-input" id="sc-extra-debt" min="0" max="3000" step="50" value="0" oninput="document.getElementById('sc-extra-debt-val').textContent='$'+this.value" />
+            <span class="range-val" id="sc-extra-debt-val">$0</span>
+          </div>
+          <div class="form-hint">Extra applied to debt principal each month</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Results -->
+  <div class="scenario-results">
+
+    <!-- Comparison table -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">12-Month Projection</span></div>
+      <div class="table-wrap">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Baseline</th>
+              <th>Scenario</th>
+              <th>Difference</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="fw-700">Monthly Cash Flow</td>
+              <td class="baseline font-mono" id="sc-res-base-cf">—</td>
+              <td class="scenario font-mono" id="sc-res-scen-cf">—</td>
+              <td class="font-mono fw-700" id="sc-res-cf-diff">—</td>
+            </tr>
+            <tr>
+              <td class="fw-700">Savings in 12 Months</td>
+              <td class="baseline font-mono" id="sc-res-base-sav12">—</td>
+              <td class="scenario font-mono" id="sc-res-scen-sav12">—</td>
+              <td class="font-mono fw-700" id="sc-res-sav-diff">—</td>
+            </tr>
+            <tr>
+              <td class="fw-700">Debt in 12 Months</td>
+              <td class="baseline font-mono" id="sc-res-base-debt12">—</td>
+              <td class="scenario font-mono" id="sc-res-scen-debt12">—</td>
+              <td class="font-mono fw-700" id="sc-res-debt-diff">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 5-year projection chart -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">5-Year Savings Projection</span></div>
+      <div class="card-body">
+        <div style="position:relative;height:260px">
+          <canvas id="scenario-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key insight callout -->
+    <div class="card" style="background:var(--primary-light);box-shadow:none;border:1.5px solid rgba(99,102,241,.2)">
+      <div class="card-body" style="padding:1.25rem">
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <div style="font-size:1.75rem">💡</div>
+          <div>
+            <div class="fw-700 mb-1" style="color:var(--primary)">How to use this planner</div>
+            <div class="text-sm text-muted">Drag the sliders to model different scenarios. The chart updates in real time to show how small monthly changes compound over 5 years. Even $100/month extra savings adds up to $6,000+ in a year.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>initScenarios();</script>
+{% endblock %}

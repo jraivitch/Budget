@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Budget Planner{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+</head>
+<body>
+
+<!-- ===== Sidebar ===== -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <div class="logo-icon"><i class="fas fa-chart-pie"></i></div>
+      <div>
+        <div class="logo-text">BudgetPlanner</div>
+        <div class="logo-sub">Personal Finance</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <a href="{{ url_for('dashboard.index') }}" class="nav-link {% if active == 'dashboard' %}active{% endif %}">
+      <i class="fas fa-gauge-high"></i> Dashboard
+    </a>
+
+    <div class="nav-section-label">Money</div>
+    <a href="{{ url_for('income.income_page') }}" class="nav-link {% if active == 'income' %}active{% endif %}">
+      <i class="fas fa-money-bill-trend-up"></i> Income
+    </a>
+    <a href="{{ url_for('expenses.expenses_page') }}" class="nav-link {% if active == 'expenses' %}active{% endif %}">
+      <i class="fas fa-receipt"></i> Expenses
+    </a>
+
+    <div class="nav-section-label">Goals &amp; Debt</div>
+    <a href="{{ url_for('savings.savings_page') }}" class="nav-link {% if active == 'savings' %}active{% endif %}">
+      <i class="fas fa-piggy-bank"></i> Savings Goals
+    </a>
+    <a href="{{ url_for('debt.debt_page') }}" class="nav-link {% if active == 'debt' %}active{% endif %}">
+      <i class="fas fa-credit-card"></i> Debt Tracker
+    </a>
+
+    <div class="nav-section-label">Planning</div>
+    <a href="{{ url_for('allocation.allocation_page') }}" class="nav-link {% if active == 'allocation' %}active{% endif %}">
+      <i class="fas fa-sliders"></i> Allocation
+    </a>
+    <a href="{{ url_for('scenarios.scenarios_page') }}" class="nav-link {% if active == 'scenarios' %}active{% endif %}">
+      <i class="fas fa-flask"></i> Scenarios
+    </a>
+  </nav>
+</aside>
+
+<!-- Mobile overlay -->
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- ===== Main ===== -->
+<div class="main-content">
+  <header class="topbar">
+    <div class="flex flex-center gap-md">
+      <button class="hamburger" aria-label="Menu"><i class="fas fa-bars"></i></button>
+      <span class="topbar-title">{% block page_title %}Dashboard{% endblock %}</span>
+    </div>
+    <div class="topbar-actions">
+      <span class="text-muted text-sm" id="current-date"></span>
+    </div>
+  </header>
+
+  <main class="page-body">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-container">
+          {% for cat, msg in messages %}
+            <div class="flash flash-{{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<!-- App JS -->
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script>
+  // Show current date in topbar
+  document.getElementById("current-date").textContent =
+    new Date().toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric", year: "numeric" });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

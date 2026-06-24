@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Debt Tracker — Budget Planner{% endblock %}
+{% block page_title %}Debt Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Debt Tracker</div>
+    <div class="page-subtitle">Monitor balances and plan your payoff timeline</div>
+  </div>
+  <button class="btn btn-primary" id="btn-add-debt">
+    <i class="fas fa-plus"></i> Add Debt
+  </button>
+</div>
+
+<!-- Summary stats -->
+<div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-bottom:1.5rem">
+  <div class="stat-card" style="--accent:#ef4444">
+    <i class="fas fa-money-bill-wave stat-icon"></i>
+    <div class="stat-label">Total Balance</div>
+    <div class="stat-value negative" id="debt-total-balance">—</div>
+    <div class="stat-sub">All debts combined</div>
+  </div>
+  <div class="stat-card" style="--accent:#f59e0b">
+    <i class="fas fa-calendar-check stat-icon"></i>
+    <div class="stat-label">Monthly Payments</div>
+    <div class="stat-value" id="debt-total-payment">—</div>
+    <div class="stat-sub">Total going to debt</div>
+  </div>
+</div>
+
+<div class="debt-grid" id="debt-grid">
+  <div class="empty-state"><div class="spinner"></div></div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="debt-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="debt-modal-title">Add Debt</span>
+      <button class="modal-close" onclick="closeModal('debt-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form id="debt-form">
+      <div class="modal-body">
+        <div class="form-group mb-2">
+          <label class="form-label">Debt Name</label>
+          <input id="debt-name" class="form-control" type="text" placeholder="e.g. Car Loan, Student Loan" required />
+        </div>
+        <div class="form-grid mb-2">
+          <div class="form-group">
+            <label class="form-label">Current Balance ($)</label>
+            <input id="debt-balance" class="form-control" type="number" min="0" step="0.01" placeholder="10000" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Interest Rate (%)</label>
+            <input id="debt-rate" class="form-control" type="number" min="0" step="0.01" placeholder="5.0" />
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Minimum Payment ($)</label>
+            <input id="debt-min" class="form-control" type="number" min="0" step="0.01" placeholder="350" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Extra Payment ($)</label>
+            <input id="debt-extra" class="form-control" type="number" min="0" step="0.01" placeholder="0" />
+            <span class="form-hint">Extra goes toward principal</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('debt-modal')">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>initDebt();</script>
+{% endblock %}
