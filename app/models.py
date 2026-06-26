@@ -157,6 +157,35 @@ class Debt(db.Model):
 
 
 # ---------------------------------------------------------------------------
+# Asset
+# ---------------------------------------------------------------------------
+
+class Asset(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    value = db.Column(db.Float, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    CATEGORIES = [
+        "Cash & Savings",
+        "Investments",
+        "Retirement",
+        "Real Estate",
+        "Vehicles",
+        "Other",
+    ]
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "category": self.category,
+            "value": self.value,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Allocation
 # ---------------------------------------------------------------------------
 

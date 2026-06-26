@@ -38,6 +38,11 @@
       <i class="fas fa-receipt"></i> Expenses
     </a>
 
+    <div class="nav-section-label">Wealth</div>
+    <a href="{{ url_for('networth.networth_page') }}" class="nav-link {% if active == 'networth' %}active{% endif %}">
+      <i class="fas fa-scale-balanced"></i> Net Worth
+    </a>
+
     <div class="nav-section-label">Goals &amp; Debt</div>
     <a href="{{ url_for('savings.savings_page') }}" class="nav-link {% if active == 'savings' %}active{% endif %}">
       <i class="fas fa-piggy-bank"></i> Savings Goals
