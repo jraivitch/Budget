@@ -46,6 +46,11 @@
       <i class="fas fa-credit-card"></i> Debt Tracker
     </a>
 
+    <div class="nav-section-label">Tracking</div>
+    <a href="{{ url_for('spending.spending_page') }}" class="nav-link {% if active == 'spending' %}active{% endif %}">
+      <i class="fas fa-arrow-right-arrow-left"></i> Spending
+    </a>
+
     <div class="nav-section-label">Planning</div>
     <a href="{{ url_for('allocation.allocation_page') }}" class="nav-link {% if active == 'allocation' %}active{% endif %}">
       <i class="fas fa-sliders"></i> Allocation

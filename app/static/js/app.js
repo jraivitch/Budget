@@ -950,6 +950,187 @@ function renderScenarioChart(base, scenario) {
 }
 
 // ---------------------------------------------------------------------------
+// Spending / Budget-vs-Actual page
+// ---------------------------------------------------------------------------
+
+window.initSpending = async function () {
+  const picker = $("#month-picker");
+  if (picker) {
+    picker.value = new Date().toISOString().slice(0, 7);
+  }
+
+  await loadSpending();
+
+  picker?.addEventListener("change", loadSpending);
+
+  $("#btn-add-txn")?.addEventListener("click", () => {
+    const modal = $("#txn-modal");
+    if (modal) modal.dataset.editId = "";
+    $("#txn-modal-title").textContent = "Add Transaction";
+    $("#txn-date").value = new Date().toISOString().split("T")[0];
+    $("#txn-amount").value = "";
+    openModal("txn-modal");
+  });
+
+  $("#txn-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const modal = $("#txn-modal");
+    const editId = modal?.dataset.editId;
+    const payload = {
+      date: $("#txn-date").value,
+      description: $("#txn-desc").value.trim(),
+      amount: parseFloat($("#txn-amount").value),
+      category: $("#txn-category").value,
+    };
+    try {
+      if (editId) {
+        await apiFetch(`/api/spending/${editId}`, { method: "PUT", body: JSON.stringify(payload) });
+        showToast("Transaction updated.");
+      } else {
+        await apiFetch("/api/spending", { method: "POST", body: JSON.stringify(payload) });
+        showToast("Transaction added.");
+      }
+      closeModal("txn-modal");
+      await loadSpending();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  });
+};
+
+async function loadSpending() {
+  const month = $("#month-picker")?.value;
+  const data = await apiFetch(`/api/spending${month ? "?month=" + month : ""}`);
+
+  const statBudgeted = $("#stat-budgeted");
+  const statActual = $("#stat-actual");
+  const statRemaining = $("#stat-remaining");
+  const statPct = $("#stat-pct-used");
+
+  if (statBudgeted) statBudgeted.textContent = fmt(data.total_budgeted);
+  if (statActual) statActual.textContent = fmt(data.total_actual);
+  if (statRemaining) {
+    statRemaining.textContent = fmt(Math.abs(data.total_remaining));
+    statRemaining.className = "stat-value " + (data.total_remaining >= 0 ? "positive" : "negative");
+  }
+  if (statPct) {
+    const pct = data.total_budgeted > 0 ? (data.total_actual / data.total_budgeted) * 100 : 0;
+    statPct.textContent = fmtPct(pct);
+    statPct.className = "stat-value " + (pct > 100 ? "negative" : pct > 80 ? "warning" : "");
+  }
+
+  renderCategoryBreakdown(data.by_category);
+  renderTransactions(data.transactions);
+}
+
+function renderCategoryBreakdown(byCategory) {
+  const container = $("#category-breakdown");
+  if (!container) return;
+
+  const entries = Object.entries(byCategory).filter(([, v]) => v.budgeted > 0 || v.actual > 0);
+
+  if (entries.length === 0) {
+    container.innerHTML = `<div class="empty-state"><i class="fas fa-chart-bar"></i><p>No budget data. Add expenses on the Expenses page.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = entries.map(([cat, v]) => {
+    const pct = v.budgeted > 0 ? Math.min(100, (v.actual / v.budgeted) * 100) : 0;
+    const over = v.actual > v.budgeted && v.budgeted > 0;
+    const barClass = over ? "danger" : pct > 80 ? "warning" : "success";
+    const diffColor = v.diff >= 0 ? "var(--success)" : "var(--danger)";
+    const diffLabel = v.diff >= 0 ? "left" : "over";
+
+    return `
+      <div class="bva-row">
+        <div class="bva-header">
+          <span class="bva-cat">${escHtml(cat)}</span>
+          <span class="bva-diff" style="color:${diffColor}">${fmt(Math.abs(v.diff))} ${diffLabel}</span>
+        </div>
+        <div class="progress-bar-wrap" style="height:6px;margin-bottom:.3rem">
+          <div class="progress-bar ${barClass}" style="width:${pct}%"></div>
+        </div>
+        <div class="bva-amounts">
+          <span>${fmt(v.actual)} spent</span>
+          <span>${fmt(v.budgeted)} budgeted</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderTransactions(transactions) {
+  const container = $("#txn-list");
+  if (!container) return;
+
+  if (transactions.length === 0) {
+    container.innerHTML = `<div class="empty-state"><i class="fas fa-receipt"></i><p>No transactions this month yet.</p></div>`;
+    return;
+  }
+
+  const rows = transactions.map(t => `
+    <tr>
+      <td class="text-sm text-muted" style="white-space:nowrap">${txnFmtDate(t.date)}</td>
+      <td class="fw-700">${escHtml(t.description)}</td>
+      <td><span class="badge badge-neutral">${escHtml(t.category)}</span></td>
+      <td class="amount negative-amount" style="text-align:right">${fmt(t.amount)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="editTxn(${t.id})" title="Edit">
+            <i class="fas fa-pencil"></i>
+          </button>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteTxn(${t.id})" title="Delete" style="color:var(--danger)">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join("");
+
+  container.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Category</th>
+          <th style="text-align:right">Amount</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function txnFmtDate(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+window.editTxn = async function (id) {
+  const month = $("#month-picker")?.value;
+  const data = await apiFetch(`/api/spending${month ? "?month=" + month : ""}`);
+  const item = data.transactions.find(t => t.id === id);
+  if (!item) return;
+  const modal = $("#txn-modal");
+  modal.dataset.editId = id;
+  $("#txn-modal-title").textContent = "Edit Transaction";
+  $("#txn-date").value = item.date;
+  $("#txn-amount").value = item.amount;
+  $("#txn-desc").value = item.description;
+  $("#txn-category").value = item.category;
+  openModal("txn-modal");
+};
+
+window.deleteTxn = async function (id) {
+  if (!confirm("Delete this transaction?")) return;
+  await apiFetch(`/api/spending/${id}`, { method: "DELETE" });
+  showToast("Transaction deleted.");
+  await loadSpending();
+};
+
+// ---------------------------------------------------------------------------
 // Security: escape HTML
 // ---------------------------------------------------------------------------
 
