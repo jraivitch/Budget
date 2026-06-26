@@ -803,3 +803,46 @@ select.form-control { background-image: url("data:image/svg+xml,%3Csvg xmlns='ht
 /* --- Net worth positive/negative -------------------------- */
 .nw-positive { color: var(--success); }
 .nw-negative { color: var(--danger); }
+
+/* --- Budget vs. Actual (spending page) -------------------- */
+.spending-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.bva-row {
+  margin-bottom: 1.1rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.bva-row:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.bva-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: .3rem;
+}
+
+.bva-cat { font-size: .875rem; font-weight: 600; }
+
+.bva-diff { font-size: .75rem; font-weight: 600; }
+
+.bva-amounts {
+  display: flex;
+  justify-content: space-between;
+  font-size: .72rem;
+  color: var(--text-muted);
+  margin-top: .25rem;
+}
+
+@media (max-width: 900px) {
+  .spending-layout { grid-template-columns: 1fr; }
+}
