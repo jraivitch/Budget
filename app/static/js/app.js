@@ -79,6 +79,112 @@ function showToast(msg, type = "success") {
 // Sidebar toggle (mobile)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Bill reminder bell (runs on every page)
+// ---------------------------------------------------------------------------
+
+(async function initNotifBell() {
+  const btn      = document.getElementById("notif-btn");
+  const badge    = document.getElementById("notif-badge");
+  const dropdown = document.getElementById("notif-dropdown");
+  const list     = document.getElementById("notif-list");
+  const sub      = document.getElementById("notif-sub");
+  if (!btn) return;
+
+  const DAYS_AHEAD = 7;
+
+  async function loadReminders() {
+    try {
+      const data = await apiFetch("/api/calendar/bills");
+      const today = new Date();
+      const todayDay = today.getDate();
+      const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+
+      const upcoming = data.bills.filter(b => {
+        const due = Math.min(b.due_day, daysInMonth);
+        return due >= todayDay && due <= todayDay + DAYS_AHEAD;
+      }).sort((a, b) => a.due_day - b.due_day);
+
+      const overdue = data.bills.filter(b => {
+        const due = Math.min(b.due_day, daysInMonth);
+        return due < todayDay;
+      }).sort((a, b) => b.due_day - a.due_day);
+
+      const total = upcoming.length + overdue.length;
+
+      if (total > 0) {
+        badge.textContent = total > 9 ? "9+" : total;
+        badge.style.display = "flex";
+      } else {
+        badge.style.display = "none";
+      }
+
+      if (!data.bills.length) {
+        sub.textContent = "";
+        list.innerHTML = `<div class="notif-empty"><i class="fas fa-calendar-check" style="display:block;font-size:1.5rem;margin-bottom:.4rem;color:var(--text-light)"></i>No bills tracked.<br><a href="/calendar" style="color:var(--primary)">Set up Bill Calendar</a></div>`;
+        return;
+      }
+
+      sub.textContent = `Next ${DAYS_AHEAD} days`;
+
+      let html = "";
+
+      if (overdue.length) {
+        html += `<div style="padding:.35rem 1.1rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--danger);background:var(--danger-light)">Overdue this month</div>`;
+        html += overdue.map(b => billRow(b, "overdue", daysInMonth, todayDay)).join("");
+      }
+
+      if (upcoming.length) {
+        html += `<div style="padding:.35rem 1.1rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--primary);background:var(--primary-light)">Coming up</div>`;
+        html += upcoming.map(b => billRow(b, "upcoming", daysInMonth, todayDay)).join("");
+      }
+
+      if (!overdue.length && !upcoming.length) {
+        html = `<div class="notif-empty"><i class="fas fa-circle-check" style="display:block;font-size:1.5rem;margin-bottom:.4rem;color:var(--success)"></i>No bills due in the next ${DAYS_AHEAD} days</div>`;
+      }
+
+      list.innerHTML = html;
+    } catch (e) {
+      list.innerHTML = `<div class="notif-empty">Could not load bills</div>`;
+    }
+  }
+
+  function billRow(b, type, daysInMonth, todayDay) {
+    const due = Math.min(b.due_day, daysInMonth);
+    const diff = due - todayDay;
+    const isToday = diff === 0;
+    const label = type === "overdue"
+      ? `<span style="color:var(--danger);font-size:.72rem">${Math.abs(diff)}d ago</span>`
+      : isToday
+      ? `<span style="color:var(--warning);font-weight:600;font-size:.72rem">Today</span>`
+      : `<span style="color:var(--primary);font-size:.72rem">in ${diff}d</span>`;
+
+    return `<a class="notif-item" href="/calendar">
+      <div style="width:36px;height:36px;border-radius:8px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <i class="fas fa-calendar-day" style="color:var(--primary);font-size:.85rem"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(b.name)}</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">Due day ${due} · ${fmt(b.monthly_amount)}</div>
+      </div>
+      ${label}
+    </a>`;
+  }
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle("open");
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!document.getElementById("notif-wrap")?.contains(e.target)) {
+      dropdown.classList.remove("open");
+    }
+  });
+
+  await loadReminders();
+})();
+
 document.addEventListener("DOMContentLoaded", () => {
   const sidebar = $(".sidebar");
   const overlay = $(".sidebar-overlay");

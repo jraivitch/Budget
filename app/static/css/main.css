@@ -183,6 +183,94 @@ input, select, textarea { font-family: inherit; }
 
 .topbar-actions { display: flex; align-items: center; gap: .75rem; }
 
+/* --- Notification bell ------------------------------------ */
+.notif-wrap {
+  position: relative;
+}
+
+.notif-btn {
+  background: none;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  transition: background var(--transition), color var(--transition);
+  position: relative;
+}
+
+.notif-btn:hover { background: var(--bg); color: var(--text); }
+
+.notif-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--danger);
+  color: #fff;
+  font-size: .6rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  pointer-events: none;
+}
+
+.notif-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+  z-index: 500;
+  overflow: hidden;
+}
+
+.notif-dropdown.open { display: block; }
+
+.notif-header {
+  padding: .85rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notif-title { font-size: .85rem; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: .4rem; }
+.notif-sub   { font-size: .75rem; color: var(--text-muted); }
+
+.notif-item {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .65rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--transition);
+}
+
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: var(--bg); }
+
+.notif-empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: .85rem;
+}
+
 .hamburger {
   display: none;
   background: none;

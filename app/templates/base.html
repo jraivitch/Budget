@@ -76,6 +76,20 @@
     </div>
     <div class="topbar-actions">
       <span class="text-muted text-sm" id="current-date"></span>
+      <!-- Bill reminder bell -->
+      <div class="notif-wrap" id="notif-wrap">
+        <button class="notif-btn" id="notif-btn" aria-label="Bill reminders">
+          <i class="fas fa-bell"></i>
+          <span class="notif-badge" id="notif-badge" style="display:none"></span>
+        </button>
+        <div class="notif-dropdown" id="notif-dropdown">
+          <div class="notif-header">
+            <span class="notif-title"><i class="fas fa-bell" style="color:var(--primary)"></i> Upcoming Bills</span>
+            <span class="notif-sub" id="notif-sub"></span>
+          </div>
+          <div id="notif-list"></div>
+        </div>
+      </div>
     </div>
   </header>
 
