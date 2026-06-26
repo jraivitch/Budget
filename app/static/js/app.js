@@ -1141,3 +1141,269 @@ function escHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+// ---------------------------------------------------------------------------
+// Bill Calendar page
+// ---------------------------------------------------------------------------
+
+const CAT_COLORS = {
+  Housing: "#6366f1", Car: "#f59e0b", Food: "#10b981", Insurance: "#3b82f6",
+  Subscriptions: "#8b5cf6", "Student Loans": "#ef4444", Savings: "#10b981",
+  Investing: "#0ea5e9", Utilities: "#f97316", Healthcare: "#ec4899",
+  Entertainment: "#a855f7", Personal: "#14b8a6", Other: "#94a3b8",
+};
+
+window.initCalendar = async function () {
+  let bills = [];
+  let allExpenses = [];
+  let viewDate = new Date();
+  viewDate.setDate(1);
+
+  async function loadBills() {
+    const data = await apiFetch("/api/calendar/bills");
+    bills = data.bills;
+    render();
+  }
+
+  async function loadAllExpenses() {
+    const data = await apiFetch("/api/calendar/all-expenses");
+    allExpenses = data.expenses;
+    renderManageList();
+  }
+
+  function render() {
+    renderStats();
+    renderGrid();
+    renderList();
+  }
+
+  function renderStats() {
+    const today = new Date();
+    const isCurrentMonth =
+      viewDate.getFullYear() === today.getFullYear() &&
+      viewDate.getMonth() === today.getMonth();
+
+    const total = bills.reduce((s, b) => s + b.monthly_amount, 0);
+    const ahead = isCurrentMonth
+      ? bills.filter(b => b.due_day > today.getDate()).reduce((s, b) => s + b.monthly_amount, 0)
+      : 0;
+    const past = isCurrentMonth
+      ? bills.filter(b => b.due_day <= today.getDate()).reduce((s, b) => s + b.monthly_amount, 0)
+      : total;
+
+    $("#stat-bill-count").textContent = bills.length;
+    $("#stat-bill-total").textContent = fmt(total);
+    $("#stat-bill-ahead").textContent = fmt(ahead);
+    $("#stat-bill-past").textContent = fmt(past);
+  }
+
+  function renderGrid() {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const label = viewDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    $("#cal-month-label").textContent = label;
+
+    const today = new Date();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+
+    const grid = $("#cal-grid");
+    grid.innerHTML = "";
+
+    // Bill lookup: due_day -> bills[]
+    const byDay = {};
+    bills.forEach(b => {
+      const d = Math.min(b.due_day, daysInMonth);
+      (byDay[d] = byDay[d] || []).push(b);
+    });
+
+    // Leading empty cells
+    for (let i = 0; i < firstDow; i++) {
+      const cell = document.createElement("div");
+      cell.style.cssText = "min-height:90px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:#f8fafc";
+      grid.appendChild(cell);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isToday =
+        today.getFullYear() === year &&
+        today.getMonth() === month &&
+        today.getDate() === day;
+      const isPast = new Date(year, month, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+      const cell = document.createElement("div");
+      cell.style.cssText = `min-height:90px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:.35rem .4rem;position:relative;background:${isToday ? "var(--primary-light)" : "var(--surface)"}`;
+
+      const dayNum = document.createElement("div");
+      dayNum.style.cssText = `font-size:.78rem;font-weight:${isToday ? "700" : "500"};color:${isToday ? "var(--primary)" : isPast ? "var(--text-muted)" : "var(--text)"};margin-bottom:.3rem`;
+      dayNum.textContent = day;
+      cell.appendChild(dayNum);
+
+      (byDay[day] || []).forEach(b => {
+        const chip = document.createElement("div");
+        const color = CAT_COLORS[b.category] || "#94a3b8";
+        chip.style.cssText = `background:${color}18;border-left:3px solid ${color};border-radius:4px;padding:.15rem .35rem;margin-bottom:.2rem;cursor:pointer;font-size:.68rem;line-height:1.3`;
+        chip.innerHTML = `<div style="font-weight:600;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(b.name)}</div><div style="color:var(--text-muted)">${fmt(b.monthly_amount)}</div>`;
+        chip.title = `${b.name} — ${fmt(b.monthly_amount)}/mo — Click to edit due day`;
+        chip.addEventListener("click", () => openDueDayModal(b));
+        cell.appendChild(chip);
+      });
+
+      grid.appendChild(cell);
+    }
+
+    // Trailing empty cells to fill last row
+    const totalCells = firstDow + daysInMonth;
+    const remainder = totalCells % 7;
+    if (remainder !== 0) {
+      for (let i = 0; i < 7 - remainder; i++) {
+        const cell = document.createElement("div");
+        cell.style.cssText = "min-height:90px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:#f8fafc";
+        grid.appendChild(cell);
+      }
+    }
+  }
+
+  function renderList() {
+    const list = $("#bill-list");
+    if (!bills.length) {
+      list.innerHTML = `<div class="empty-state" style="padding:2rem;text-align:center">
+        <i class="fas fa-calendar-plus" style="font-size:2rem;color:var(--text-light);margin-bottom:.5rem"></i>
+        <div style="font-weight:600;margin-bottom:.25rem">No bills tracked yet</div>
+        <div class="text-sm text-muted" style="margin-bottom:1rem">Use "Manage Bills" to choose which expenses appear here</div>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('btn-manage-bills').click()"><i class="fas fa-sliders"></i> Manage Bills</button>
+      </div>`;
+      return;
+    }
+
+    const sorted = [...bills].sort((a, b) => a.due_day - b.due_day);
+    list.innerHTML = sorted.map(b => {
+      const color = CAT_COLORS[b.category] || "#94a3b8";
+      const today = new Date();
+      const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      const due = Math.min(b.due_day, daysInMonth);
+      const diff = due - today.getDate();
+      const badge = diff < 0
+        ? `<span style="font-size:.65rem;background:var(--success-light);color:var(--success);border-radius:4px;padding:.1rem .4rem">Passed</span>`
+        : diff === 0
+        ? `<span style="font-size:.65rem;background:var(--warning-light);color:var(--warning);border-radius:4px;padding:.1rem .4rem">Today</span>`
+        : `<span style="font-size:.65rem;background:var(--primary-light);color:var(--primary);border-radius:4px;padding:.1rem .4rem">in ${diff}d</span>`;
+
+      return `<div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 1rem;border-bottom:1px solid var(--border);cursor:pointer" onclick='openDueDayModal(${JSON.stringify(b)})'>
+        <div style="width:4px;height:36px;border-radius:2px;background:${color};flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(b.name)}</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">${escHtml(b.category)} · Day ${due}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-weight:600;font-size:.85rem">${fmt(b.monthly_amount)}</div>
+          ${badge}
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  function renderManageList() {
+    const list = $("#manage-list");
+    if (!allExpenses.length) {
+      list.innerHTML = `<div class="empty-state" style="padding:2rem">No expenses found. Add some on the Expenses page.</div>`;
+      return;
+    }
+
+    // Group by category
+    const byCategory = {};
+    allExpenses.forEach(e => {
+      (byCategory[e.category] = byCategory[e.category] || []).push(e);
+    });
+
+    list.innerHTML = Object.entries(byCategory).map(([cat, items]) => {
+      const color = CAT_COLORS[cat] || "#94a3b8";
+      const rows = items.map(e => {
+        const checked = e.track_on_calendar;
+        return `<div style="display:flex;align-items:center;gap:.75rem;padding:.55rem 1.25rem;border-bottom:1px solid var(--border)">
+          <label style="display:flex;align-items:center;gap:.75rem;flex:1;cursor:pointer;min-width:0">
+            <input type="checkbox" ${checked ? "checked" : ""}
+              style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex-shrink:0"
+              onchange="toggleCalendarTracking(${e.id}, this.checked)" />
+            <span style="flex:1;min-width:0">
+              <span style="font-weight:500;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block">${escHtml(e.name)}</span>
+              <span style="font-size:.75rem;color:var(--text-muted)">${fmt(e.monthly_amount)}/mo · ${escHtml(e.frequency)}</span>
+            </span>
+          </label>
+          ${checked ? `<button class="btn btn-outline btn-sm" style="font-size:.72rem;padding:.2rem .6rem" onclick='openDueDayModal(${JSON.stringify(e)})'>Day ${e.due_day}</button>` : ""}
+        </div>`;
+      }).join("");
+
+      return `<div>
+        <div style="padding:.4rem 1.25rem;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:${color};background:${color}12;border-bottom:1px solid var(--border)">${escHtml(cat)}</div>
+        ${rows}
+      </div>`;
+    }).join("");
+  }
+
+  let editingBill = null;
+
+  window.openDueDayModal = function (bill) {
+    editingBill = bill;
+    $("#due-day-bill-name").textContent = bill.name;
+    $("#due-day-input").value = bill.due_day;
+    openModal("due-day-modal");
+  };
+
+  window.toggleCalendarTracking = async function (id, tracked) {
+    try {
+      const updated = await apiFetch(`/api/calendar/bills/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ track_on_calendar: tracked }),
+      });
+      // Update local allExpenses list
+      const idx = allExpenses.findIndex(e => e.id === id);
+      if (idx !== -1) allExpenses[idx] = updated;
+      renderManageList();
+      await loadBills();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+
+  $("#due-day-save")?.addEventListener("click", async () => {
+    if (!editingBill) return;
+    const day = parseInt($("#due-day-input").value, 10);
+    if (!day || day < 1 || day > 31) {
+      showToast("Enter a day between 1 and 31", "error");
+      return;
+    }
+    try {
+      const updated = await apiFetch(`/api/calendar/bills/${editingBill.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ due_day: day }),
+      });
+      // Sync back into allExpenses so the manage list stays fresh
+      const idx = allExpenses.findIndex(e => e.id === editingBill.id);
+      if (idx !== -1) allExpenses[idx] = updated;
+      closeModal("due-day-modal");
+      showToast("Due day updated");
+      renderManageList();
+      await loadBills();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  });
+
+  $("#btn-manage-bills")?.addEventListener("click", async () => {
+    await loadAllExpenses();
+    openModal("manage-modal");
+  });
+
+  $("#btn-prev-month")?.addEventListener("click", () => {
+    viewDate.setMonth(viewDate.getMonth() - 1);
+    render();
+  });
+
+  $("#btn-next-month")?.addEventListener("click", () => {
+    viewDate.setMonth(viewDate.getMonth() + 1);
+    render();
+  });
+
+  await loadBills();
+};

@@ -19,6 +19,7 @@ def create_app(config_class=Config):
     from app.routes.allocation import allocation_bp
     from app.routes.scenarios import scenarios_bp
     from app.routes.spending import spending_bp
+    from app.routes.calendar import calendar_bp
 
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(income_bp)
@@ -28,6 +29,7 @@ def create_app(config_class=Config):
     app.register_blueprint(allocation_bp)
     app.register_blueprint(scenarios_bp)
     app.register_blueprint(spending_bp)
+    app.register_blueprint(calendar_bp)
 
     with app.app_context():
         db.create_all()

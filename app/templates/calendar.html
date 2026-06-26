@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Bill Calendar — Budget Planner{% endblock %}
+{% block page_title %}Bill Calendar{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Bill Calendar</div>
+    <div class="page-subtitle">See when your tracked recurring payments hit each month</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+    <button class="btn btn-outline" id="btn-manage-bills"><i class="fas fa-sliders"></i> Manage Bills</button>
+    <button class="btn btn-outline" id="btn-prev-month"><i class="fas fa-chevron-left"></i></button>
+    <span id="cal-month-label" style="font-weight:600;font-size:1.05rem;min-width:140px;text-align:center"></span>
+    <button class="btn btn-outline" id="btn-next-month"><i class="fas fa-chevron-right"></i></button>
+  </div>
+</div>
+
+<!-- Summary strip -->
+<div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-bottom:1.5rem">
+  <div class="stat-card" style="--accent:#6366f1">
+    <i class="fas fa-calendar-check stat-icon"></i>
+    <div class="stat-label">Bills This Month</div>
+    <div class="stat-value" id="stat-bill-count">—</div>
+    <div class="stat-sub">Tracked payments</div>
+  </div>
+  <div class="stat-card" style="--accent:#ef4444">
+    <i class="fas fa-money-bill-wave stat-icon"></i>
+    <div class="stat-label">Total Due</div>
+    <div class="stat-value" id="stat-bill-total">—</div>
+    <div class="stat-sub">Monthly tracked total</div>
+  </div>
+  <div class="stat-card" style="--accent:#f59e0b">
+    <i class="fas fa-hourglass-half stat-icon"></i>
+    <div class="stat-label">Still Ahead</div>
+    <div class="stat-value" id="stat-bill-ahead">—</div>
+    <div class="stat-sub">Due after today</div>
+  </div>
+  <div class="stat-card" style="--accent:#10b981">
+    <i class="fas fa-circle-check stat-icon"></i>
+    <div class="stat-label">Already Past</div>
+    <div class="stat-value" id="stat-bill-past">—</div>
+    <div class="stat-sub">Due before today</div>
+  </div>
+</div>
+
+<!-- Two-column: calendar + sidebar list -->
+<div style="display:grid;grid-template-columns:1fr 320px;gap:1.5rem;align-items:start">
+
+  <!-- Calendar grid -->
+  <div class="card" style="overflow:hidden">
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)">
+      {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}
+      <div style="padding:.6rem .5rem;text-align:center;font-size:.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em">{{ d }}</div>
+      {% endfor %}
+    </div>
+    <div id="cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr)"></div>
+  </div>
+
+  <!-- Bill list sidebar -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><i class="fas fa-list-ul" style="color:var(--primary)"></i> Tracked Bills</span>
+    </div>
+    <div id="bill-list" style="padding:.5rem 0;max-height:520px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- Manage Bills modal -->
+<div class="modal-overlay" id="manage-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="fas fa-sliders" style="color:var(--primary)"></i> Manage Bills</span>
+      <button class="modal-close" onclick="closeModal('manage-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div style="padding:.75rem 1.25rem;background:var(--primary-light);border-bottom:1px solid var(--border);font-size:.82rem;color:var(--primary)">
+        <i class="fas fa-circle-info"></i> Toggle which expenses appear on the calendar. Click a row to also set its due day.
+      </div>
+      <div id="manage-list" style="max-height:420px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('manage-modal')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit due-day modal -->
+<div class="modal-overlay" id="due-day-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <span class="modal-title">Set Due Day</span>
+      <button class="modal-close" onclick="closeModal('due-day-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p id="due-day-bill-name" style="font-weight:600;margin-bottom:1rem;color:var(--text)"></p>
+      <div class="form-group">
+        <label class="form-label">Day of month bill is due</label>
+        <input id="due-day-input" class="form-control" type="number" min="1" max="31" placeholder="e.g. 15" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('due-day-modal')">Cancel</button>
+      <button class="btn btn-primary" id="due-day-save"><i class="fas fa-save"></i> Save</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>initCalendar();</script>
+{% endblock %}
