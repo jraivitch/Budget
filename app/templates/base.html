@@ -50,6 +50,9 @@
     <a href="{{ url_for('spending.spending_page') }}" class="nav-link {% if active == 'spending' %}active{% endif %}">
       <i class="fas fa-arrow-right-arrow-left"></i> Spending
     </a>
+    <a href="{{ url_for('calendar.calendar_page') }}" class="nav-link {% if active == 'calendar' %}active{% endif %}">
+      <i class="fas fa-calendar-days"></i> Bill Calendar
+    </a>
 
     <div class="nav-section-label">Planning</div>
     <a href="{{ url_for('allocation.allocation_page') }}" class="nav-link {% if active == 'allocation' %}active{% endif %}">

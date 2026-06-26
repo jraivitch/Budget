@@ -41,6 +41,8 @@ class Expense(db.Model):
     amount = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(50), nullable=False)
     frequency = db.Column(db.String(20), nullable=False, default="monthly")
+    due_day = db.Column(db.Integer, nullable=False, default=1)  # day of month bill is due (1–31)
+    track_on_calendar = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     _FREQ = {"weekly": 52 / 12, "biweekly": 26 / 12, "monthly": 1, "annual": 1 / 12}
@@ -62,6 +64,8 @@ class Expense(db.Model):
             "amount": self.amount,
             "category": self.category,
             "frequency": self.frequency,
+            "due_day": self.due_day,
+            "track_on_calendar": self.track_on_calendar,
             "monthly_amount": round(self.monthly_amount, 2),
         }
 
