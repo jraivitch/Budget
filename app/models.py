@@ -179,6 +179,23 @@ class Allocation(db.Model):
 
 
 # ---------------------------------------------------------------------------
+# Category Spending Limit
+# ---------------------------------------------------------------------------
+
+class CategoryLimit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(50), nullable=False, unique=True)
+    monthly_limit = db.Column(db.Float, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "category": self.category,
+            "monthly_limit": self.monthly_limit,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Transaction (actual spending log)
 # ---------------------------------------------------------------------------
 

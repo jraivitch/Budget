@@ -95,22 +95,35 @@ function showToast(msg, type = "success") {
 
   async function loadReminders() {
     try {
-      const data = await apiFetch("/api/calendar/bills");
+      const [billData, spendData, limData] = await Promise.all([
+        apiFetch("/api/calendar/bills"),
+        apiFetch("/api/spending?month=" + new Date().toISOString().slice(0, 7)),
+        apiFetch("/api/limits"),
+      ]);
+
       const today = new Date();
       const todayDay = today.getDate();
       const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
 
-      const upcoming = data.bills.filter(b => {
+      const upcoming = billData.bills.filter(b => {
         const due = Math.min(b.due_day, daysInMonth);
         return due >= todayDay && due <= todayDay + DAYS_AHEAD;
       }).sort((a, b) => a.due_day - b.due_day);
 
-      const overdue = data.bills.filter(b => {
+      const overdue = billData.bills.filter(b => {
         const due = Math.min(b.due_day, daysInMonth);
         return due < todayDay;
       }).sort((a, b) => b.due_day - a.due_day);
 
-      const total = upcoming.length + overdue.length;
+      // Find categories over or near their limit
+      const limitAlerts = limData.limits.map(l => {
+        const actual = spendData.by_category[l.category]?.actual || 0;
+        const pct = actual / l.monthly_limit * 100;
+        if (pct >= 80) return { ...l, actual, pct, over: pct >= 100 };
+        return null;
+      }).filter(Boolean).sort((a, b) => b.pct - a.pct);
+
+      const total = upcoming.length + overdue.length + limitAlerts.length;
 
       if (total > 0) {
         badge.textContent = total > 9 ? "9+" : total;
@@ -119,7 +132,8 @@ function showToast(msg, type = "success") {
         badge.style.display = "none";
       }
 
-      if (!data.bills.length) {
+      const hasAnything = billData.bills.length || limData.limits.length;
+      if (!hasAnything) {
         sub.textContent = "";
         list.innerHTML = `<div class="notif-empty"><i class="fas fa-calendar-check" style="display:block;font-size:1.5rem;margin-bottom:.4rem;color:var(--text-light)"></i>No bills tracked.<br><a href="/calendar" style="color:var(--primary)">Set up Bill Calendar</a></div>`;
         return;
@@ -128,6 +142,25 @@ function showToast(msg, type = "success") {
       sub.textContent = `Next ${DAYS_AHEAD} days`;
 
       let html = "";
+
+      if (limitAlerts.length) {
+        html += `<div style="padding:.35rem 1.1rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${limitAlerts.some(a=>a.over)?"var(--danger)":"var(--warning)"};background:${limitAlerts.some(a=>a.over)?"var(--danger-light)":"var(--warning-light)"}">Spending limits</div>`;
+        html += limitAlerts.map(a => {
+          const icon = a.over ? "fa-triangle-exclamation" : "fa-circle-exclamation";
+          const color = a.over ? "var(--danger)" : "var(--warning)";
+          const label = a.over ? `${fmt(a.actual - a.monthly_limit)} over` : `${a.pct.toFixed(0)}% used`;
+          return `<a class="notif-item" href="/spending">
+            <div style="width:36px;height:36px;border-radius:8px;background:${a.over?"var(--danger-light)":"var(--warning-light)"};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <i class="fas ${icon}" style="color:${color};font-size:.85rem"></i>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:.82rem">${escHtml(a.category)}</div>
+              <div style="font-size:.75rem;color:var(--text-muted)">${fmt(a.actual)} of ${fmt(a.monthly_limit)} limit</div>
+            </div>
+            <span style="color:${color};font-size:.72rem;font-weight:600">${label}</span>
+          </a>`;
+        }).join("");
+      }
 
       if (overdue.length) {
         html += `<div style="padding:.35rem 1.1rem;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--danger);background:var(--danger-light)">Overdue this month</div>`;
@@ -139,13 +172,13 @@ function showToast(msg, type = "success") {
         html += upcoming.map(b => billRow(b, "upcoming", daysInMonth, todayDay)).join("");
       }
 
-      if (!overdue.length && !upcoming.length) {
-        html = `<div class="notif-empty"><i class="fas fa-circle-check" style="display:block;font-size:1.5rem;margin-bottom:.4rem;color:var(--success)"></i>No bills due in the next ${DAYS_AHEAD} days</div>`;
+      if (!overdue.length && !upcoming.length && !limitAlerts.length) {
+        html = `<div class="notif-empty"><i class="fas fa-circle-check" style="display:block;font-size:1.5rem;margin-bottom:.4rem;color:var(--success)"></i>All clear — no bills due or limits exceeded</div>`;
       }
 
       list.innerHTML = html;
     } catch (e) {
-      list.innerHTML = `<div class="notif-empty">Could not load bills</div>`;
+      list.innerHTML = `<div class="notif-empty">Could not load reminders</div>`;
     }
   }
 
@@ -1069,6 +1102,25 @@ window.initSpending = async function () {
 
   picker?.addEventListener("change", loadSpending);
 
+  // Limits modal
+  $("#btn-set-limits")?.addEventListener("click", async () => {
+    await loadLimitsList();
+    openModal("limits-modal");
+  });
+
+  $("#btn-add-limit")?.addEventListener("click", async () => {
+    const cat = $("#limit-cat-select")?.value;
+    const amt = parseFloat($("#limit-amount-input")?.value);
+    if (!cat || !amt || amt <= 0) { showToast("Enter a valid category and amount", "error"); return; }
+    try {
+      await apiFetch("/api/limits", { method: "POST", body: JSON.stringify({ category: cat, monthly_limit: amt }) });
+      $("#limit-amount-input").value = "";
+      showToast(`Limit set for ${cat}`);
+      await loadLimitsList();
+      await loadSpending();
+    } catch (err) { showToast(err.message, "error"); }
+  });
+
   $("#btn-add-txn")?.addEventListener("click", () => {
     const modal = $("#txn-modal");
     if (modal) modal.dataset.editId = "";
@@ -1104,6 +1156,36 @@ window.initSpending = async function () {
   });
 };
 
+async function loadLimitsList() {
+  const data = await apiFetch("/api/limits");
+  const list = $("#limits-list");
+  if (!list) return;
+  if (!data.limits.length) {
+    list.innerHTML = `<div class="notif-empty" style="padding:1.5rem">No limits set yet. Add one above.</div>`;
+    return;
+  }
+  list.innerHTML = data.limits.map(l => `
+    <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 1.25rem;border-bottom:1px solid var(--border)">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:.85rem">${escHtml(l.category)}</div>
+        <div style="font-size:.78rem;color:var(--text-muted)">${fmt(l.monthly_limit)} / month</div>
+      </div>
+      <button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger);font-size:.75rem" onclick="deleteLimit(${l.id})">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
+  `).join("");
+}
+
+window.deleteLimit = async function(id) {
+  try {
+    await apiFetch(`/api/limits/${id}`, { method: "DELETE" });
+    showToast("Limit removed");
+    await loadLimitsList();
+    await loadSpending();
+  } catch (err) { showToast(err.message, "error"); }
+};
+
 async function loadSpending() {
   const month = $("#month-picker")?.value;
   const data = await apiFetch(`/api/spending${month ? "?month=" + month : ""}`);
@@ -1125,11 +1207,11 @@ async function loadSpending() {
     statPct.className = "stat-value " + (pct > 100 ? "negative" : pct > 80 ? "warning" : "");
   }
 
-  renderCategoryBreakdown(data.by_category);
+  renderCategoryBreakdown(data.by_category, data.limits || {});
   renderTransactions(data.transactions);
 }
 
-function renderCategoryBreakdown(byCategory) {
+function renderCategoryBreakdown(byCategory, limits) {
   const container = $("#category-breakdown");
   if (!container) return;
 
@@ -1147,6 +1229,33 @@ function renderCategoryBreakdown(byCategory) {
     const diffColor = v.diff >= 0 ? "var(--success)" : "var(--danger)";
     const diffLabel = v.diff >= 0 ? "left" : "over";
 
+    // Spending limit indicator
+    let limitHtml = "";
+    if (limits[cat]) {
+      const lim = limits[cat];
+      const limPct = Math.min(100, (v.actual / lim) * 100);
+      const limOver = v.actual > lim;
+      const limNear = !limOver && limPct >= 80;
+      const limColor = limOver ? "var(--danger)" : limNear ? "var(--warning)" : "var(--success)";
+      const limBarClass = limOver ? "danger" : limNear ? "warning" : "success";
+      const limLabel = limOver
+        ? `<span style="color:var(--danger);font-weight:600;font-size:.72rem"><i class="fas fa-triangle-exclamation"></i> ${fmt(v.actual - lim)} over limit</span>`
+        : limNear
+        ? `<span style="color:var(--warning);font-weight:600;font-size:.72rem"><i class="fas fa-circle-exclamation"></i> Near limit</span>`
+        : `<span style="color:var(--text-muted);font-size:.72rem">${fmt(lim - v.actual)} under limit</span>`;
+
+      limitHtml = `
+        <div style="margin-top:.5rem;padding:.5rem .6rem;border-radius:6px;background:${limOver ? "var(--danger-light)" : limNear ? "var(--warning-light)" : "var(--bg)"};border:1px solid ${limColor}30">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+            <span style="font-size:.72rem;color:var(--text-muted)">Limit: ${fmt(lim)}</span>
+            ${limLabel}
+          </div>
+          <div class="progress-bar-wrap" style="height:4px">
+            <div class="progress-bar ${limBarClass}" style="width:${limPct}%"></div>
+          </div>
+        </div>`;
+    }
+
     return `
       <div class="bva-row">
         <div class="bva-header">
@@ -1160,6 +1269,7 @@ function renderCategoryBreakdown(byCategory) {
           <span>${fmt(v.actual)} spent</span>
           <span>${fmt(v.budgeted)} budgeted</span>
         </div>
+        ${limitHtml}
       </div>
     `;
   }).join("");
