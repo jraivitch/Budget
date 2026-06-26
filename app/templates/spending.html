@@ -10,6 +10,9 @@
   </div>
   <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
     <input type="month" id="month-picker" class="form-control" style="width:auto" />
+    <button class="btn btn-outline" id="btn-set-limits">
+      <i class="fas fa-gauge-high"></i> Set Limits
+    </button>
     <button class="btn btn-primary" id="btn-add-txn">
       <i class="fas fa-plus"></i> Add Transaction
     </button>
@@ -63,6 +66,42 @@
     </div>
     <div id="txn-list" style="max-height:560px;overflow-y:auto">
       <div class="empty-state"><i class="fas fa-spinner fa-spin"></i></div>
+    </div>
+  </div>
+</div>
+
+<!-- Spending Limits Modal -->
+<div class="modal-overlay" id="limits-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="fas fa-gauge-high" style="color:var(--primary)"></i> Category Spending Limits</span>
+      <button class="modal-close" onclick="closeModal('limits-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div style="padding:.75rem 1.25rem;background:var(--primary-light);border-bottom:1px solid var(--border);font-size:.82rem;color:var(--primary)">
+        <i class="fas fa-circle-info"></i> Set a monthly cap per category. You'll see a warning when you're close or over.
+      </div>
+      <!-- Add new limit -->
+      <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;gap:.5rem;align-items:flex-end">
+        <div class="form-group" style="flex:1;margin:0">
+          <label class="form-label">Category</label>
+          <select id="limit-cat-select" class="form-control">
+            {% for cat in categories %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group" style="width:130px;margin:0">
+          <label class="form-label">Monthly Limit ($)</label>
+          <input id="limit-amount-input" class="form-control" type="number" min="1" step="1" placeholder="e.g. 300" />
+        </div>
+        <button class="btn btn-primary" id="btn-add-limit" style="flex-shrink:0"><i class="fas fa-plus"></i> Add</button>
+      </div>
+      <!-- Current limits list -->
+      <div id="limits-list" style="max-height:320px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('limits-modal')">Done</button>
     </div>
   </div>
 </div>

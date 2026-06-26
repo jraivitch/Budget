@@ -2,7 +2,7 @@ import calendar
 from datetime import date, datetime
 from flask import Blueprint, render_template, request, jsonify
 from app import db
-from app.models import Expense, Transaction
+from app.models import Expense, Transaction, CategoryLimit
 
 spending_bp = Blueprint("spending", __name__)
 
@@ -50,6 +50,8 @@ def list_spending():
     total_budgeted = round(sum(budgeted.values()), 2)
     total_actual = round(sum(v["actual"] for v in by_category.values()), 2)
 
+    limits = {l.category: l.monthly_limit for l in CategoryLimit.query.all()}
+
     return jsonify({
         "month": month_str,
         "transactions": [t.to_dict() for t in transactions],
@@ -57,6 +59,7 @@ def list_spending():
         "total_budgeted": total_budgeted,
         "total_actual": total_actual,
         "total_remaining": round(total_budgeted - total_actual, 2),
+        "limits": limits,
     })
 
 
@@ -90,5 +93,36 @@ def update_transaction(item_id):
 def delete_transaction(item_id):
     t = Transaction.query.get_or_404(item_id)
     db.session.delete(t)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@spending_bp.route("/api/limits", methods=["GET"])
+def list_limits():
+    limits = CategoryLimit.query.order_by(CategoryLimit.category).all()
+    return jsonify({"limits": [l.to_dict() for l in limits]})
+
+
+@spending_bp.route("/api/limits", methods=["POST"])
+def upsert_limit():
+    data = request.get_json()
+    category = data.get("category", "").strip()
+    monthly_limit = float(data.get("monthly_limit", 0))
+    if not category or monthly_limit <= 0:
+        return jsonify({"error": "category and positive monthly_limit required"}), 400
+    limit = CategoryLimit.query.filter_by(category=category).first()
+    if limit:
+        limit.monthly_limit = monthly_limit
+    else:
+        limit = CategoryLimit(category=category, monthly_limit=monthly_limit)
+        db.session.add(limit)
+    db.session.commit()
+    return jsonify(limit.to_dict()), 201
+
+
+@spending_bp.route("/api/limits/<int:item_id>", methods=["DELETE"])
+def delete_limit(item_id):
+    limit = CategoryLimit.query.get_or_404(item_id)
+    db.session.delete(limit)
     db.session.commit()
     return jsonify({"ok": True})
