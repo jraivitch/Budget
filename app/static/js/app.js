@@ -1623,3 +1623,207 @@ window.initCalendar = async function () {
 
   await loadBills();
 };
+
+// ---------------------------------------------------------------------------
+// Net Worth page
+// ---------------------------------------------------------------------------
+
+const NW_CAT_COLORS = {
+  "Cash & Savings": "#10b981",
+  "Investments":    "#6366f1",
+  "Retirement":     "#ef4444",
+  "Real Estate":    "#f59e0b",
+  "Vehicles":       "#06b6d4",
+  "Other":          "#94a3b8",
+};
+
+window.initNetWorth = async function () {
+  let nwPieChart = null;
+
+  async function load() {
+    const data = await apiFetch("/api/networth");
+    renderStats(data);
+    renderAssets(data.assets);
+    renderLiabilities(data.debts);
+    renderPie(data.by_asset_category, data.total_assets);
+  }
+
+  function renderStats(data) {
+    const nwEl = $("#stat-net-worth");
+    if (nwEl) {
+      nwEl.textContent = fmt(data.net_worth);
+      nwEl.className = "stat-value " + (data.net_worth >= 0 ? "positive" : "negative");
+    }
+    const assetsEl = $("#stat-total-assets");
+    if (assetsEl) assetsEl.textContent = fmt(data.total_assets);
+    const liabEl = $("#stat-total-liabilities");
+    if (liabEl) liabEl.textContent = fmt(data.total_liabilities);
+    const covEl = $("#stat-coverage");
+    if (covEl) {
+      const pct = data.total_liabilities > 0
+        ? (data.total_assets / data.total_liabilities * 100).toFixed(0) + "%"
+        : data.total_assets > 0 ? "∞" : "—";
+      covEl.textContent = pct;
+    }
+    const aLabel = $("#assets-total-label");
+    if (aLabel) aLabel.textContent = fmt(data.total_assets);
+    const lLabel = $("#liabilities-total-label");
+    if (lLabel) lLabel.textContent = fmt(data.total_liabilities);
+  }
+
+  function renderAssets(assets) {
+    const el = $("#assets-list");
+    if (!el) return;
+    if (!assets.length) {
+      el.innerHTML = `<div class="empty-state" style="padding:2rem;text-align:center">
+        <i class="fas fa-building-columns" style="font-size:2rem;color:var(--text-light);margin-bottom:.5rem"></i>
+        <div style="font-weight:600;margin-bottom:.25rem">No assets yet</div>
+        <div class="text-sm text-muted">Click "Add Asset" to get started</div>
+      </div>`;
+      return;
+    }
+
+    // Group by category
+    const byCat = {};
+    assets.forEach(a => (byCat[a.category] = byCat[a.category] || []).push(a));
+
+    el.innerHTML = Object.entries(byCat).map(([cat, items]) => {
+      const color = NW_CAT_COLORS[cat] || "#94a3b8";
+      const catTotal = items.reduce((s, a) => s + a.value, 0);
+      const rows = items.map(a => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem 1.25rem;border-bottom:1px solid var(--border)">
+          <span style="font-size:.85rem;color:var(--text)">${escHtml(a.name)}</span>
+          <div style="display:flex;align-items:center;gap:.75rem">
+            <span style="font-weight:600;font-size:.85rem;color:var(--success)">${fmt(a.value)}</span>
+            <button class="btn btn-outline btn-sm" style="padding:.2rem .5rem;font-size:.72rem" onclick="editAsset(${JSON.stringify(a).replace(/"/g,'&quot;')})"><i class="fas fa-pen"></i></button>
+            <button class="btn btn-outline btn-sm" style="padding:.2rem .5rem;font-size:.72rem;color:var(--danger);border-color:var(--danger)" onclick="deleteAsset(${a.id})"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>`).join("");
+
+      return `<div>
+        <div style="display:flex;justify-content:space-between;padding:.4rem 1.25rem;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:${color};background:${color}12;border-bottom:1px solid var(--border)">
+          <span>${escHtml(cat)}</span><span>${fmt(catTotal)}</span>
+        </div>
+        ${rows}
+      </div>`;
+    }).join("");
+  }
+
+  function renderLiabilities(debts) {
+    const el = $("#liabilities-list");
+    if (!el) return;
+    if (!debts.length) {
+      el.innerHTML = `<div class="empty-state" style="padding:2rem;text-align:center">
+        <i class="fas fa-circle-check" style="font-size:2rem;color:var(--success);margin-bottom:.5rem"></i>
+        <div style="font-weight:600">No debts — great!</div>
+        <div class="text-sm text-muted">Add debts on the Debt Tracker page</div>
+      </div>`;
+      return;
+    }
+    el.innerHTML = debts.map(d => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.6rem 1.25rem;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:.85rem;font-weight:500">${escHtml(d.name)}</div>
+          <div style="font-size:.75rem;color:var(--text-muted)">${d.interest_rate}% APR · ${fmt(d.minimum_payment)}/mo min</div>
+        </div>
+        <span style="font-weight:600;color:var(--danger)">${fmt(d.balance)}</span>
+      </div>`).join("");
+  }
+
+  function renderPie(byCat, total) {
+    const ctx = document.getElementById("nw-pie-chart");
+    const legendEl = $("#nw-legend");
+    if (!ctx) return;
+
+    if (nwPieChart) nwPieChart.destroy();
+
+    const entries = Object.entries(byCat);
+    if (!entries.length) {
+      ctx.style.display = "none";
+      if (legendEl) legendEl.innerHTML = `<div style="color:var(--text-muted);font-size:.85rem">Add assets to see breakdown</div>`;
+      return;
+    }
+
+    ctx.style.display = "block";
+
+    const labels = entries.map(([k]) => k);
+    const values = entries.map(([, v]) => v);
+    const colors = labels.map(l => NW_CAT_COLORS[l] || "#94a3b8");
+
+    nwPieChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels,
+        datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: "#fff", hoverOffset: 6 }],
+      },
+      options: {
+        cutout: "65%",
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${fmt(c.raw)}` } } },
+      },
+    });
+
+    if (legendEl) {
+      legendEl.innerHTML = entries.map(([cat, val]) => {
+        const color = NW_CAT_COLORS[cat] || "#94a3b8";
+        const pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+        return `<div style="display:flex;align-items:center;gap:.75rem">
+          <div style="width:12px;height:12px;border-radius:3px;background:${color};flex-shrink:0"></div>
+          <div style="flex:1;font-size:.83rem">${escHtml(cat)}</div>
+          <div style="font-weight:600;font-size:.83rem">${fmt(val)}</div>
+          <div style="font-size:.78rem;color:var(--text-muted);min-width:38px;text-align:right">${pct}%</div>
+        </div>`;
+      }).join("");
+    }
+  }
+
+  // Add / Edit modal
+  $("#btn-add-asset")?.addEventListener("click", () => {
+    const modal = $("#asset-modal");
+    if (modal) modal.dataset.editId = "";
+    $("#asset-modal-title").textContent = "Add Asset";
+    openModal("asset-modal");
+  });
+
+  window.editAsset = function (a) {
+    const modal = $("#asset-modal");
+    if (modal) modal.dataset.editId = a.id;
+    $("#asset-modal-title").textContent = "Edit Asset";
+    $("#asset-name").value = a.name;
+    $("#asset-category").value = a.category;
+    $("#asset-value").value = a.value;
+    openModal("asset-modal");
+  };
+
+  window.deleteAsset = async function (id) {
+    if (!confirm("Delete this asset?")) return;
+    try {
+      await apiFetch(`/api/networth/assets/${id}`, { method: "DELETE" });
+      showToast("Asset removed");
+      await load();
+    } catch (err) { showToast(err.message, "error"); }
+  };
+
+  $("#asset-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const modal = $("#asset-modal");
+    const editId = modal?.dataset.editId;
+    const payload = {
+      name: $("#asset-name").value.trim(),
+      category: $("#asset-category").value,
+      value: parseFloat($("#asset-value").value),
+    };
+    try {
+      if (editId) {
+        await apiFetch(`/api/networth/assets/${editId}`, { method: "PUT", body: JSON.stringify(payload) });
+        showToast("Asset updated");
+      } else {
+        await apiFetch("/api/networth/assets", { method: "POST", body: JSON.stringify(payload) });
+        showToast("Asset added");
+      }
+      closeModal("asset-modal");
+      await load();
+    } catch (err) { showToast(err.message, "error"); }
+  });
+
+  await load();
+};
