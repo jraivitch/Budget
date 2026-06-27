@@ -7,6 +7,66 @@
 "use strict";
 
 // ---------------------------------------------------------------------------
+// Chart.js dark theme defaults
+// ---------------------------------------------------------------------------
+
+// Shared chart colors for the dark fintech theme
+const CHART_BORDER = "#131c33";          // gap color between donut segments (matches card)
+const CHART_GRID   = "rgba(255,255,255,.06)";
+const CHART_TICK   = "#97a3b8";
+
+if (window.Chart) {
+  Chart.defaults.color = CHART_TICK;
+  Chart.defaults.borderColor = CHART_GRID;
+  Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+}
+
+// Vertical gradient fill helper. `stops` = [[offset, color], ...]
+function vGradient(chart, stops) {
+  const { ctx, chartArea } = chart;
+  if (!chartArea) return stops[0][1];   // chartArea not ready on first paint
+  const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+  stops.forEach(([o, c]) => g.addColorStop(o, c));
+  return g;
+}
+
+// Soft neon glow applied per-dataset (use in a chart's `plugins: [glowPlugin]`)
+const glowPlugin = {
+  id: "glow",
+  beforeDatasetDraw(chart) {
+    chart.ctx.save();
+    chart.ctx.shadowColor = "rgba(129,140,248,.45)";
+    chart.ctx.shadowBlur = 16;
+  },
+  afterDatasetDraw(chart) {
+    chart.ctx.restore();
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Cursor spotlight — radial glow follows the pointer across glass cards
+// ---------------------------------------------------------------------------
+
+(function initSpotlight() {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  const SEL = ".card, .stat-card, .goal-card, .debt-card";
+  let pending = false, lastE = null;
+  document.addEventListener("mousemove", (e) => {
+    lastE = e;
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      const card = lastE.target.closest?.(SEL);
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      card.style.setProperty("--mx", ((lastE.clientX - r.left) / r.width * 100) + "%");
+      card.style.setProperty("--my", ((lastE.clientY - r.top) / r.height * 100) + "%");
+    });
+  }, { passive: true });
+})();
+
+// ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
 
@@ -73,6 +133,64 @@ function showToast(msg, type = "success") {
   const style = document.createElement("style");
   style.textContent = `@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`;
   document.head.appendChild(style);
+})();
+
+// ---------------------------------------------------------------------------
+// Animated count-up for .stat-value elements
+// Watches stat values and rolls them up from 0 whenever they change to a
+// number. Preserves the exact original formatting ($, %, commas) on finish.
+// ---------------------------------------------------------------------------
+
+(function initCountUp() {
+  const prefersReduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+  function animate(el) {
+    if (!el || el.dataset.cu === "1") return;
+    const raw = el.textContent.trim();
+    const m = raw.match(/^([^\d-]*)([\d,]*\.?\d+)(.*)$/);   // prefix, number, suffix
+    if (!m) return;
+    const target = parseFloat(m[2].replace(/,/g, ""));
+    if (isNaN(target)) return;
+    if (el._cuLast === raw) return;   // already displaying this value
+    el._cuLast = raw;
+    if (prefersReduced) return;
+
+    const prefix = m[1], suffix = m[3];
+    const hasDec = m[2].includes(".");
+    const dur = 850, start = performance.now();
+    el.dataset.cu = "1";
+
+    function step(now) {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const v = target * eased;
+      el.textContent = prefix + (hasDec ? v.toFixed(1) : Math.round(v).toLocaleString("en-US")) + suffix;
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        el.textContent = raw;          // restore exact original formatting
+        delete el.dataset.cu;
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  const obs = new MutationObserver((muts) => {
+    const seen = new Set();
+    for (const mu of muts) {
+      let el = mu.target;
+      if (el.nodeType === 3) el = el.parentElement;       // text node → element
+      if (el && el.classList?.contains("stat-value") && !seen.has(el)) {
+        seen.add(el);
+        animate(el);
+      }
+    }
+  });
+
+  document.addEventListener("DOMContentLoaded", () => {
+    obs.observe(document.body, { subtree: true, childList: true, characterData: true });
+    $$(".stat-value").forEach(animate);
+  });
 })();
 
 // ---------------------------------------------------------------------------
@@ -274,6 +392,139 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ---------------------------------------------------------------------------
+// Page transitions — fade the content out before navigating
+// ---------------------------------------------------------------------------
+
+function navigateTo(href) {
+  if (!href || href === "#") return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    window.location.href = href;
+    return;
+  }
+  document.body.classList.add("is-leaving");
+  setTimeout(() => { window.location.href = href; }, 200);
+}
+
+// Clear the leaving state if the page is restored from bfcache
+window.addEventListener("pageshow", () => document.body.classList.remove("is-leaving"));
+
+document.addEventListener("DOMContentLoaded", () => {
+  $$(".sidebar-nav .nav-link").forEach(a => {
+    a.addEventListener("click", (e) => {
+      const href = a.getAttribute("href");
+      if (href && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        navigateTo(href);
+      }
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Command palette (⌘K)
+// ---------------------------------------------------------------------------
+
+(function initCmdK() {
+  const overlay = document.getElementById("cmdk-overlay");
+  const input   = document.getElementById("cmdk-input");
+  const listEl  = document.getElementById("cmdk-list");
+  const trigger = document.getElementById("cmdk-trigger");
+  if (!overlay || !input || !listEl) return;
+
+  // Build navigation commands from the sidebar links
+  const navItems = $$(".sidebar-nav .nav-link").map(a => ({
+    label: a.textContent.trim(),
+    href: a.getAttribute("href"),
+    icon: a.querySelector("i")?.className || "fas fa-arrow-right",
+    group: "Navigate",
+  }));
+
+  // Global quick actions
+  const actions = [
+    { label: "Show Bill Reminders", icon: "fas fa-bell", group: "Actions",
+      run: () => document.getElementById("notif-btn")?.click() },
+  ];
+
+  const all = [...navItems, ...actions];
+  let filtered = all.slice();
+  let active = 0;
+
+  function render() {
+    if (!filtered.length) {
+      listEl.innerHTML = `<div class="cmdk-empty">No results</div>`;
+      return;
+    }
+    let html = "", lastGroup = null;
+    filtered.forEach((it, i) => {
+      if (it.group !== lastGroup) {
+        html += `<div class="cmdk-group-label">${it.group}</div>`;
+        lastGroup = it.group;
+      }
+      html += `<div class="cmdk-item ${i === active ? "active" : ""}" data-i="${i}">
+        <span class="cmdk-ico"><i class="${it.icon}"></i></span>
+        <span class="cmdk-label">${escHtml(it.label)}</span>
+        <span class="cmdk-hint">${it.href ? "Go" : "Run"}</span>
+      </div>`;
+    });
+    listEl.innerHTML = html;
+  }
+
+  function applyFilter(q) {
+    q = q.trim().toLowerCase();
+    filtered = q ? all.filter(it => it.label.toLowerCase().includes(q)) : all.slice();
+    active = 0;
+    render();
+  }
+
+  function updateActive() {
+    const items = $$(".cmdk-item", listEl);
+    items.forEach((el, i) => el.classList.toggle("active", i === active));
+    items[active]?.scrollIntoView({ block: "nearest" });
+  }
+
+  function open() {
+    overlay.classList.add("open");
+    input.value = "";
+    applyFilter("");
+    setTimeout(() => input.focus(), 30);
+  }
+  function close() { overlay.classList.remove("open"); }
+
+  function exec(it) {
+    if (!it) return;
+    close();
+    if (it.href) navigateTo(it.href);
+    else if (it.run) it.run();
+  }
+
+  trigger?.addEventListener("click", open);
+  input.addEventListener("input", () => applyFilter(input.value));
+
+  listEl.addEventListener("click", (e) => {
+    const item = e.target.closest(".cmdk-item");
+    if (item) exec(filtered[+item.dataset.i]);
+  });
+  listEl.addEventListener("mousemove", (e) => {
+    const item = e.target.closest(".cmdk-item");
+    if (item && +item.dataset.i !== active) { active = +item.dataset.i; updateActive(); }
+  });
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      overlay.classList.contains("open") ? close() : open();
+      return;
+    }
+    if (!overlay.classList.contains("open")) return;
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(active + 1, filtered.length - 1); updateActive(); }
+    else if (e.key === "ArrowUp")   { e.preventDefault(); active = Math.max(active - 1, 0); updateActive(); }
+    else if (e.key === "Enter")     { e.preventDefault(); exec(filtered[active]); }
+  });
+})();
+
+// ---------------------------------------------------------------------------
 // Dashboard page
 // ---------------------------------------------------------------------------
 
@@ -336,12 +587,13 @@ function renderExpensePie(byCategory) {
         data: values,
         backgroundColor: CATEGORY_COLORS.slice(0, labels.length),
         borderWidth: 2,
-        borderColor: "#fff",
-        hoverOffset: 6,
+        borderColor: CHART_BORDER,
+        hoverOffset: 10,
+        hoverBorderColor: CHART_BORDER,
       }],
     },
     options: {
-      cutout: "65%",
+      cutout: "68%",
       plugins: {
         legend: { position: "right", labels: { boxWidth: 12, font: { size: 11 }, padding: 10 } },
         tooltip: {
@@ -351,6 +603,7 @@ function renderExpensePie(byCategory) {
         },
       },
     },
+    plugins: [glowPlugin],
   });
 }
 
@@ -365,8 +618,22 @@ function renderIncomeExpenseBar(d) {
     data: {
       labels: ["Monthly Budget"],
       datasets: [
-        { label: "Expenses", data: [d.monthly_expenses], backgroundColor: "#ef4444", borderRadius: 6 },
-        { label: "Remaining", data: [remaining], backgroundColor: "#10b981", borderRadius: 6 },
+        {
+          label: "Expenses",
+          data: [d.monthly_expenses],
+          backgroundColor: (c) => vGradient(c.chart, [[0, "rgba(248,113,113,.95)"], [1, "rgba(248,113,113,.35)"]]),
+          borderRadius: 8,
+          borderSkipped: false,
+          maxBarThickness: 90,
+        },
+        {
+          label: "Remaining",
+          data: [remaining],
+          backgroundColor: (c) => vGradient(c.chart, [[0, "rgba(52,211,153,.95)"], [1, "rgba(52,211,153,.35)"]]),
+          borderRadius: 8,
+          borderSkipped: false,
+          maxBarThickness: 90,
+        },
       ],
     },
     options: {
@@ -377,7 +644,7 @@ function renderIncomeExpenseBar(d) {
         y: {
           stacked: true,
           ticks: { callback: (v) => "$" + v.toLocaleString() },
-          grid: { color: "#f1f5f9" },
+          grid: { color: CHART_GRID },
           max: Math.ceil(d.monthly_income / 1000) * 1000,
         },
       },
@@ -1054,29 +1321,37 @@ function renderScenarioChart(base, scenario) {
         {
           label: "Baseline Savings",
           data: baseData,
-          borderColor: "#94a3b8",
-          backgroundColor: "rgba(148,163,184,.1)",
+          borderColor: "#64748b",
+          backgroundColor: (c) => vGradient(c.chart, [[0, "rgba(148,163,184,.18)"], [1, "rgba(148,163,184,0)"]]),
           tension: 0.4,
           fill: true,
+          borderWidth: 2,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          pointHoverRadius: 5,
         },
         {
           label: "Scenario Savings",
           data: scData,
-          borderColor: "#6366f1",
-          backgroundColor: "rgba(99,102,241,.12)",
+          borderColor: "#818cf8",
+          backgroundColor: (c) => vGradient(c.chart, [[0, "rgba(129,140,248,.40)"], [1, "rgba(129,140,248,0)"]]),
           tension: 0.4,
           fill: true,
-          borderWidth: 2.5,
+          borderWidth: 3,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointBackgroundColor: "#818cf8",
         },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
       scales: {
         y: {
           ticks: { callback: v => "$" + (v / 1000).toFixed(0) + "k" },
-          grid: { color: "#f1f5f9" },
+          grid: { color: CHART_GRID },
         },
         x: { grid: { display: false } },
       },
@@ -1085,6 +1360,7 @@ function renderScenarioChart(base, scenario) {
         tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` } },
       },
     },
+    plugins: [glowPlugin],
   });
 }
 
@@ -1436,7 +1712,7 @@ window.initCalendar = async function () {
     // Leading empty cells
     for (let i = 0; i < firstDow; i++) {
       const cell = document.createElement("div");
-      cell.style.cssText = "min-height:90px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:#f8fafc";
+      cell.style.cssText = "min-height:90px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)";
       grid.appendChild(cell);
     }
 
@@ -1474,7 +1750,7 @@ window.initCalendar = async function () {
     if (remainder !== 0) {
       for (let i = 0; i < 7 - remainder; i++) {
         const cell = document.createElement("div");
-        cell.style.cssText = "min-height:90px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:#f8fafc";
+        cell.style.cssText = "min-height:90px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:rgba(255,255,255,.02)";
         grid.appendChild(cell);
       }
     }
@@ -1754,12 +2030,13 @@ window.initNetWorth = async function () {
       type: "doughnut",
       data: {
         labels,
-        datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: "#fff", hoverOffset: 6 }],
+        datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: CHART_BORDER, hoverOffset: 10, hoverBorderColor: CHART_BORDER }],
       },
       options: {
-        cutout: "65%",
+        cutout: "68%",
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${fmt(c.raw)}` } } },
       },
+      plugins: [glowPlugin],
     });
 
     if (legendEl) {
